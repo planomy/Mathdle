@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mathdle by Mr C</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#1e1e24; --panel:#0f172a; --muted:#9ca3af; --cell:#1f2838; --cell-hover:#2a3345; --cell-border:#4b5563; --accent:#a78bfa; --lime:#4ade80; --danger:#ef4444; --warn:#fbbf24; --primary:#6d28d9; }
+    html { overflow-y: scroll; scrollbar-gutter: stable; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: #e0e2e6; overscroll-behavior-y: contain; overflow-x: hidden; }
+
+    .grid-cell { transition: all .2s ease-in-out; user-select: none; -webkit-user-drag: none; cursor: pointer; touch-action: none; font-size: 1.5rem; background: var(--cell); border: 2px solid var(--cell-border); box-shadow: 0 1px 3px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.2); }
+    .grid-cell:hover { background: var(--cell-hover); }
+    .grid-cell.number, .grid-cell.operator { color: #e0e2e6; }
+    .grid-cell.selected { background: var(--accent)!important; color: #1e1e24!important; box-shadow: 0 0 10px 2px var(--accent); }
+
+    .target-box { background: var(--cell); border: 2px solid var(--cell-border); color: #e0e2e6; font-size: 0.9rem; text-align:center; border-radius: 0.25rem; padding: 0.3rem 0; transition: all 0.2s ease-in-out; }
+    .target-box.found { background: var(--lime); color: #1e1e24; box-shadow: 0 0 8px var(--lime); transform: scale(1.05); }
+
+    #running-total { min-width: 3ch; text-align: right; }
+    .hidden { display:none; }
+    .selected-time { background: var(--lime)!important; color: #1e1e24!important; }
+  </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-2 sm:p-4">
+  <div id="setup-screen" class="w-full max-w-sm mx-auto text-center">
+    <h1 class="text-3xl font-extrabold tracking-tight mb-3">🔢 Mathdle by Mr C</h1>
+    <p class="text-sm text-gray-400 mb-6">Trace a path of alternating numbers and operators to hit targets 1–25 before time runs out!</p>
+    <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
+      <h2 class="text-lg font-semibold mb-3">Select Duration</h2>
+      <div id="time-options" class="grid grid-cols-5 gap-2 mb-6">
+        <button data-time="60" class="time-option bg-gray-700 hover:bg-purple-700 py-2 px-3 rounded shadow-md">1:00</button>
+        <button data-time="120" class="time-option bg-gray-700 hover:bg-purple-700 py-2 px-3 rounded shadow-md">2:00</button>
+        <button data-time="180" class="time-option bg-gray-700 hover:bg-purple-700 py-2 px-3 rounded shadow-md">3:00</button>
+        <button data-time="240" class="time-option bg-gray-700 hover:bg-purple-700 py-2 px-3 rounded shadow-md">4:00</button>
+        <button data-time="300" class="time-option bg-gray-700 hover:bg-purple-700 py-2 px-3 rounded shadow-md">5:00</button>
+      </div>
+      <button id="start-game-button" class="w-full bg-lime-500 hover:bg-lime-600 text-gray-900 font-semibold py-3 px-6 rounded-lg shadow-xl">Start Game</button>
+    </div>
+  </div>
+
+  <div id="game-screen" class="w-full max-w-xs mx-auto hidden">
+    <header class="text-center mb-1">
+      <h1 class="text-xl font-semibold tracking-tight">Mathdle</h1>
+    </header>
+    <div class="flex flex-col items-center">
+      <main class="w-full p-2 rounded shadow-lg flex items-stretch bg-gray-900">
+        <div class="flex flex-col mr-2 py-1">
+          <div class="w-3 h-full bg-gray-700 rounded-full overflow-hidden flex flex-col justify-end shadow-inner">
+            <div id="time-progress-bar" class="w-full transition-all duration-300 ease-linear bg-purple-600"></div>
+          </div>
+        </div>
+        <div class="flex-grow flex flex-col h-full">
+          <div class="flex justify-between mb-1 bg-gray-900/50 p-1.5 rounded shadow-md">
+            <div class="flex flex-col items-start justify-between">
+              <span class="text-xs text-gray-400 font-medium">Time Remaining</span>
+              <p id="timer" class="text-lg font-semibold">00:00</p>
+            </div>
+            <div class="flex flex-col items-end justify-between">
+              <span class="text-xs text-gray-400 font-medium">Score</span>
+              <p id="score" class="text-lg font-semibold">0</p>
+            </div>
+          </div>
+          <div class="flex justify-between items-center text-sm text-gray-400 mb-2">
+            <div>Total: <span id="running-total" class="text-white font-semibold">0</span></div>
+          </div>
+          <div id="game-grid-container" class="h-full select-none">
+            <div id="game-grid" class="grid grid-cols-5 gap-1.5 aspect-square"></div>
+          </div>
+          <div class="text-center text-sm text-gray-400 mt-3 mb-1">Targets 1–25</div>
+          <div id="target-grid" class="grid grid-cols-5 gap-1 mt-1"></div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div id="end-screen" class="hidden w-full max-w-sm mx-auto text-center mt-6">
+    <h2 class="text-2xl font-bold mb-2">Time's Up!</h2>
+    <p class="text-gray-300 mb-4">Your final score: <span id="final-score" class="text-lime-400 font-bold">0</span></p>
+    <button id="restart-button" class="bg-lime-500 hover:bg-lime-600 text-gray-900 font-semibold py-2 px-4 rounded">Play Again</button>
+  </div>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const GRID_SIZE = 5;
+    const gridContainer = document.getElementById('game-grid');
+    const runningTotalEl = document.getElementById('running-total');
+    const timerEl = document.getElementById('timer');
+    const scoreEl = document.getElementById('score');
+    const finalScoreEl = document.getElementById('final-score');
+    const setupScreen = document.getElementById('setup-screen');
+    const gameScreen = document.getElementById('game-screen');
+    const endScreen = document.getElementById('end-screen');
+    const progressBar = document.getElementById('time-progress-bar');
+    const targetGrid = document.getElementById('target-grid');
+
+    let grid = [];
+    let currentPath = [];
+    let isDragging = false;
+    let totalTime = 120;
+    let remaining = 0;
+    let timerInterval;
+    let score = 0;
+    const foundTargets = new Set();
+
+    document.querySelectorAll('.time-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.time-option').forEach(b => b.classList.remove('selected-time'));
+        btn.classList.add('selected-time');
+        totalTime = parseInt(btn.dataset.time, 10);
+      });
+    });
+
+    function renderTargetGrid() {
+      targetGrid.innerHTML = '';
+      for (let i = 1; i <= 25; i++) {
+        const div = document.createElement('div');
+        div.className = 'target-box';
+        div.textContent = i;
+        div.id = `target-${i}`;
+        targetGrid.appendChild(div);
+      }
+    }
+
+    function markTargetFound(num) {
+      const box = document.getElementById(`target-${num}`);
+      if (box) box.classList.add('found');
+      foundTargets.add(num);
+      if (foundTargets.size === 25) endGame();
+    }
+
+    function startTimer() {
+      remaining = totalTime;
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        remaining--;
+        timerEl.textContent = formatTime(remaining);
+        const percent = (remaining / totalTime) * 100;
+        progressBar.style.height = `${percent}%`;
+        if (remaining <= 10) progressBar.style.background = 'var(--danger)';
+        else progressBar.style.background = 'var(--primary)';
+        if (remaining <= 0) endGame();
+      }, 1000);
+    }
+
+    function formatTime(s) {
+      const m = Math.floor(s / 60).toString().padStart(2, '0');
+      const sec = (s % 60).toString().padStart(2, '0');
+      return `${m}:${sec}`;
+    }
+
+    function generateGrid() {
+      grid = [];
+      const ops = ['+','-'];
+      const multSpots = [];
+      while (multSpots.length < 2) {
+        const r = Math.floor(Math.random() * GRID_SIZE);
+        const c = Math.floor(Math.random() * GRID_SIZE);
+        if ((r + c) % 2 === 1 && !multSpots.some(([rr, cc]) => rr === r && cc === c)) {
+          multSpots.push([r, c]);
+        }
+      }
+
+      for (let r = 0; r < GRID_SIZE; r++) {
+        const row = [];
+        for (let c = 0; c < GRID_SIZE; c++) {
+          const isNum = (r + c) % 2 === 0;
+          let val;
+          if (isNum) val = Math.ceil(Math.random() * 9);
+          else if (multSpots.some(([rr, cc]) => rr === r && cc === c)) val = 'x';
+          else val = ops[Math.floor(Math.random() * ops.length)];
+          row.push({ row: r, col: c, type: isNum ? 'number' : 'operator', value: val, selected: false });
+        }
+        grid.push(row);
+      }
+    }
+
+    function renderGrid() {
+      gridContainer.innerHTML = '';
+      grid.forEach(row => {
+        row.forEach(cell => {
+          const div = document.createElement('div');
+          div.className = 'grid-cell flex items-center justify-center rounded';
+          div.textContent = cell.type === 'operator' && cell.value === 'x' ? '×' : cell.value;
+          div.dataset.row = cell.row;
+          div.dataset.col = cell.col;
+          gridContainer.appendChild(div);
+        });
+      });
+    }
+
+    function computeRunningTotal(path) {
+      if (path.length < 3 || path[path.length-1].type !== 'number') return path.length ? path[0].value : 0;
+      let total = path[0].value;
+      for (let i = 1; i < path.length; i += 2) {
+        const op = path[i].value;
+        const next = path[i + 1] ? path[i + 1].value : null;
+        if (typeof next !== 'number') break;
+        if (op === '+') total += next;
+        else if (op === '-') total -= next;
+        else if (op === 'x') total *= next;
+      }
+      return total;
+    }
+
+    function refreshRunningTotal() {
+      const total = computeRunningTotal(currentPath);
+      runningTotalEl.textContent = total;
+    }
+
+    function inBounds(r,c){ return r>=0 && c>=0 && r<GRID_SIZE && c<GRID_SIZE; }
+    function getCellFromEvent(e){ const t = e.target.closest('.grid-cell'); return t || null; }
+
+    function handleDragStart(e){
+      const cellEl = getCellFromEvent(e);
+      if(!cellEl) return;
+      const r = parseInt(cellEl.dataset.row,10), c = parseInt(cellEl.dataset.col,10);
+      if(!inBounds(r,c)) return;
+      const cell = grid[r][c];
+      if(cell.type !== 'number') return;
+      isDragging = true;
+      currentPath = [cell];
+      cell.selected = true;
+      cellEl.classList.add('selected');
+      refreshRunningTotal();
+    }
+
+    function handleDragMove(e){
+      if(!isDragging) return;
+      e.preventDefault();
+      const cellEl = getCellFromEvent(e);
+      if(!cellEl) return;
+      const r = parseInt(cellEl.dataset.row,10), c = parseInt(cellEl.dataset.col,10);
+      if(!inBounds(r,c)) return;
+      const newCell = grid[r][c];
+      if(currentPath.includes(newCell)) return;
+      const last = currentPath[currentPath.length - 1];
+      const adjacent = Math.abs(last.row - r) + Math.abs(last.col - c) === 1;
+      if(adjacent && last.type !== newCell.type){
+        currentPath.push(newCell);
+        newCell.selected = true;
+        cellEl.classList.add('selected');
+        refreshRunningTotal();
+      }
+    }
+
+    function handleDragEnd(){
+      if(currentPath.length >= 3 && currentPath[currentPath.length - 1].type === 'number'){
+        const finalTotal = computeRunningTotal(currentPath);
+        if(finalTotal >= 1 && finalTotal <= 25 && !foundTargets.has(finalTotal)){
+          markTargetFound(finalTotal);
+          score += 10;
+          scoreEl.textContent = score;
+          const numCount = currentPath.filter(p => p.type === 'number').length;
+          if (numCount === 4) remaining += 5;
+          else if (numCount === 5) remaining += 10;
+          else if (numCount >= 6) remaining += 15;
+        }
+      }
+      isDragging = false;
+      resetPath();
+    }
+
+    function resetPath(){
+      currentPath.forEach(p => {
+        p.selected = false;
+        const el = gridContainer.querySelector(`[data-row='${p.row}'][data-col='${p.col}']`);
+        if(el) el.classList.remove('selected');
+      });
+      currentPath = [];
+      refreshRunningTotal();
+    }
+
+    function endGame(){
+      clearInterval(timerInterval);
+      gameScreen.classList.add('hidden');
+      endScreen.classList.remove('hidden');
+      finalScoreEl.textContent = score;
+    }
+
+    document.getElementById('start-game-button').addEventListener('click', () => {
+      setupScreen.classList.add('hidden');
+      gameScreen.classList.remove('hidden');
+      renderTargetGrid();
+      generateGrid();
+      renderGrid();
+      score = 0;
+      scoreEl.textContent = score;
+      foundTargets.clear();
+      startTimer();
+    });
+
+    document.getElementById('restart-button').addEventListener('click', () => {
+      endScreen.classList.add('hidden');
+      setupScreen.classList.remove('hidden');
+    });
+
+    gridContainer.addEventListener('mousedown', handleDragStart);
+    gridContainer.addEventListener('mousemove', handleDragMove);
+    document.addEventListener('mouseup', handleDragEnd);
+
+    gridContainer.addEventListener('touchstart', handleDragStart, { passive: false });
+    gridContainer.addEventListener('touchmove', handleDragMove, { passive: false });
+    document.addEventListener('touchend', handleDragEnd);
+  });
+  </script>
+</body>
+</html>
