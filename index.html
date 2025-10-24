@@ -233,8 +233,23 @@
     function handleDragMove(e){
       if(!isDragging) return;
       e.preventDefault();
-      const cellEl = getCellFromEvent(e);
-      if(!cellEl) return;
+      
+      let cellEl = null;
+
+      if (e.touches && e.touches.length > 0) {
+        // Handle touch move: get element from touch coordinates
+        const touch = e.touches[0];
+        const t = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (t) {
+            cellEl = t.closest('.grid-cell');
+        }
+      } else {
+        // Handle mouse move: get element from event target
+        cellEl = getCellFromEvent(e);
+      }
+
+      if(!cellEl) return; // No valid cell under pointer
+      
       const r = parseInt(cellEl.dataset.row,10), c = parseInt(cellEl.dataset.col,10);
       if(!inBounds(r,c)) return;
       const newCell = grid[r][c];
@@ -311,3 +326,4 @@
   </script>
 </body>
 </html>
+
